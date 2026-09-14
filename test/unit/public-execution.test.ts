@@ -4,12 +4,12 @@ import { normalizePublicSubagentExecution } from "../../src/extension/public-exe
 
 describe("public subagent execution normalization", () => {
 	it("accepts structured single-child, workflow, management, and schedules", () => {
-		assert.deepEqual(normalizePublicSubagentExecution({ workflowScript: "return 1", globalConcurrencyLimit: 4, maxSubagentSpawnsPerRun: 8 }), { ok: true, params: { workflowScript: "return 1", globalConcurrencyLimit: 4, maxSubagentSpawnsPerRun: 8 } });
-		assert.deepEqual(normalizePublicSubagentExecution({ workflowScript: "return args.task", args: { task: "review" } }), { ok: true, params: { workflowScript: "return args.task", args: { task: "review" } } });
-		assert.deepEqual(normalizePublicSubagentExecution({ workflow: "review", args: { task: "Review this" } }), { ok: true, params: { workflow: "review", args: { task: "Review this" } } });
-		assert.deepEqual(normalizePublicSubagentExecution({ workflowScript: "return 1", preflight: { version: 1, lanes: [] } }), { ok: true, params: { workflowScript: "return 1", preflight: { version: 1, lanes: [] } } });
-		assert.deepEqual(normalizePublicSubagentExecution({ workflowScriptPath: "workflows/review.js", globalConcurrencyLimit: 2 }), { ok: true, params: { workflowScriptPath: "workflows/review.js", globalConcurrencyLimit: 2 } });
-		assert.deepEqual(normalizePublicSubagentExecution({ workflowScriptPath: "workflows/review.js", args: { task: "review" } }), { ok: true, params: { workflowScriptPath: "workflows/review.js", args: { task: "review" } } });
+		assert.deepEqual(normalizePublicSubagentExecution({ workflowScript: "return 1", globalConcurrencyLimit: 4, maxSubagentSpawnsPerRun: 8 }), { ok: true, params: { async: true, workflowScript: "return 1", globalConcurrencyLimit: 4, maxSubagentSpawnsPerRun: 8 } });
+		assert.deepEqual(normalizePublicSubagentExecution({ workflowScript: "return args.task", args: { task: "review" } }), { ok: true, params: { async: true, workflowScript: "return args.task", args: { task: "review" } } });
+		assert.deepEqual(normalizePublicSubagentExecution({ workflow: "review", args: { task: "Review this" } }), { ok: true, params: { async: true, workflow: "review", args: { task: "Review this" } } });
+		assert.deepEqual(normalizePublicSubagentExecution({ workflowScript: "return 1", preflight: { version: 1, lanes: [] } }), { ok: true, params: { async: true, workflowScript: "return 1", preflight: { version: 1, lanes: [] } } });
+		assert.deepEqual(normalizePublicSubagentExecution({ workflowScriptPath: "workflows/review.js", globalConcurrencyLimit: 2 }), { ok: true, params: { async: true, workflowScriptPath: "workflows/review.js", globalConcurrencyLimit: 2 } });
+		assert.deepEqual(normalizePublicSubagentExecution({ workflowScriptPath: "workflows/review.js", args: { task: "review" } }), { ok: true, params: { async: true, workflowScriptPath: "workflows/review.js", args: { task: "review" } } });
 		const task = "Use `quotes`\nand newlines";
 		assert.deepEqual(normalizePublicSubagentExecution({ agent: " worker ", task, context: "fresh", async: false }), {
 			ok: true,
@@ -17,13 +17,14 @@ describe("public subagent execution normalization", () => {
 				agent: "worker",
 				task,
 				context: "fresh",
-				async: false,
+				async: true,
 				output: true,
 			},
 		});
 		assert.deepEqual(normalizePublicSubagentExecution({ agent: "worker" }), {
 			ok: true,
 			params: {
+				async: true,
 				agent: "worker",
 				output: true,
 			},
@@ -40,6 +41,7 @@ describe("public subagent execution normalization", () => {
 		assert.deepEqual(normalizePublicSubagentExecution({ agent: "worker", output: false }), {
 			ok: true,
 			params: {
+				async: true,
 				agent: "worker",
 				output: false,
 			},
@@ -47,32 +49,33 @@ describe("public subagent execution normalization", () => {
 		assert.deepEqual(normalizePublicSubagentExecution({ agent: "worker", isolation: "none" }), {
 			ok: true,
 			params: {
+				async: true,
 				agent: "worker",
 				worktree: false,
 				output: true,
 			},
 		});
-		assert.deepEqual(normalizePublicSubagentExecution({ action: " list " }), { ok: true, params: { action: "list" } });
-		assert.deepEqual(normalizePublicSubagentExecution({ action: " list ", capabilities: true }), { ok: true, params: { action: "list", capabilities: true } });
+		assert.deepEqual(normalizePublicSubagentExecution({ action: " list " }), { ok: true, params: { async: true, action: "list" } });
+		assert.deepEqual(normalizePublicSubagentExecution({ action: " list ", capabilities: true }), { ok: true, params: { async: true, action: "list", capabilities: true } });
 		assert.deepEqual(
 			normalizePublicSubagentExecution({ action: " validate ", workflowScript: "return args.task", args: { task: "review" } }),
-			{ ok: true, params: { action: "validate", workflowScript: "return args.task", args: { task: "review" } } },
+			{ ok: true, params: { async: true, action: "validate", workflowScript: "return args.task", args: { task: "review" } } },
 		);
 		assert.deepEqual(
 			normalizePublicSubagentExecution({ action: " validate ", workflowScriptPath: "workflow.js" }),
-			{ ok: true, params: { action: "validate", workflowScriptPath: "workflow.js" } },
+			{ ok: true, params: { async: true, action: "validate", workflowScriptPath: "workflow.js" } },
 		);
 		assert.deepEqual(
 			normalizePublicSubagentExecution({ action: " validate ", workflowScript: "return 1", maxSubagentSpawnsPerRun: 5 }),
-			{ ok: true, params: { action: "validate", workflowScript: "return 1", maxSubagentSpawnsPerRun: 5 } },
+			{ ok: true, params: { async: true, action: "validate", workflowScript: "return 1", maxSubagentSpawnsPerRun: 5 } },
 		);
 		assert.deepEqual(
 			normalizePublicSubagentExecution({ action: " schedule.create ", every: "1h", workflowScript: "return args.task", args: { task: "review" } }),
-			{ ok: true, params: { action: "schedule.create", every: "1h", workflowScript: "return args.task", args: { task: "review" } } },
+			{ ok: true, params: { async: true, action: "schedule.create", every: "1h", workflowScript: "return args.task", args: { task: "review" } } },
 		);
 		assert.deepEqual(
 			normalizePublicSubagentExecution({ action: " schedule.create ", every: "1h", workflowScriptPath: "/tmp/workflow.js" }),
-			{ ok: true, params: { action: "schedule.create", every: "1h", workflowScriptPath: "/tmp/workflow.js" } },
+			{ ok: true, params: { async: true, action: "schedule.create", every: "1h", workflowScriptPath: "/tmp/workflow.js" } },
 		);
 	});
 
@@ -93,7 +96,7 @@ describe("public subagent execution normalization", () => {
 	it("accepts base refs on resume because resume consumes them", () => {
 		assert.deepEqual(normalizePublicSubagentExecution({ action: " resume ", id: "run-1", message: "Continue", baseRef: "refs/heads/release" }), {
 			ok: true,
-			params: { action: "resume", id: "run-1", message: "Continue", baseRef: "refs/heads/release" },
+			params: { async: true, action: "resume", id: "run-1", message: "Continue", baseRef: "refs/heads/release" },
 		});
 	});
 

@@ -107,6 +107,23 @@ describe("non-blocking wait subscriptions", () => {
 		}
 	});
 
+	it("public bg_wait returns a subscription while the original child is still detached", async () => {
+		const state = makeState();
+		state.foregroundRuns = new Map([["run-active", {
+			runId: "run-active", mode: "single", cwd: os.tmpdir(), sessionId: "session-a", updatedAt: Date.now(),
+			children: [{ agent: "worker", index: 0, status: "detached" }],
+		}]]);
+		let execute: (...args: any[]) => Promise<any>;
+		let armed = false;
+		registerWaitTool({ events: new TestBus(), registerTool(tool: any) { execute = tool.execute; } } as never, state, true, {
+			arm(input) { assert.equal(input.runId, "run-active"); armed = true; return { token: "immediate", expiresAt: Date.now() + 5000 }; },
+		});
+		const result = await execute!("wait", { id: "run-active" }, undefined, undefined, { hasUI: true });
+		assert.equal(armed, true);
+		assert.match(textOf(result), /Armed wait subscription immediate/);
+		assert.equal(state.foregroundRuns.get("run-active")!.children[0]!.status, "detached");
+	});
+
 	it("registers bg_wait and rejects non-blocking subscriptions from headless tool calls", async () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-wait-subscribe-headless-"));
 		try {

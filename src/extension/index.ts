@@ -6,7 +6,7 @@
  * - Async: Background execution, emits events when done
  *
  * Public execution mode: workflow (workflowScript)
- * Toggle: async parameter (default: true; set asyncByDefault:false in config.json to opt out)
+ * Public execution always runs asynchronously.
  *
  * Config file: ~/.pi/agent/extensions/subagent/config.json
  *   { "asyncByDefault": true, "defaultSubagentContext": "fork", "forkContext": { "mode": "pruned", "model": "provider/model" }, "forceTopLevelAsync": true, "maxSubagentDepth": 1, "intercomBridge": { "mode": "always", "instructionFile": "./intercom-bridge.md" }, "worktreeSetupHook": "./scripts/setup-worktree.mjs" }
@@ -276,7 +276,7 @@ function formatWorkflowPreflightCall(input: unknown): string {
 function formatWorkflowManifest(script: string, async: unknown, clarify: unknown, preflightInput?: unknown): string {
 	if (clarify === true) return "workflow script · rejected: clarify UI unsupported";
 	const keys = workflowLaneKeys(script);
-	// The workflow executor starts background work unless callers pass async:false.
+	// Public workflows always start in the background.
 	const mode = async === false ? "foreground" : "background";
 	const preflight = formatWorkflowPreflightCall(preflightInput);
 	if (keys.length === 0) return `workflow script · ${mode}${preflight ? ` · ${preflight}` : ""}`;
@@ -781,17 +781,17 @@ export default function registerSubagentExtension(pi: ExtensionAPI): void {
 			}
 			if (args.workflowScript)
 				return new Text(
-					`${title}${gap}${formatWorkflowManifest(args.workflowScript, args.async, false, args.preflight)}`,
+					`${title}${gap}${formatWorkflowManifest(args.workflowScript, true, false, args.preflight)}`,
 					0,
 					0,
 				);
 			if (args.workflowScriptPath)
 				return new Text(
-					`${title}${gap}${theme.fg("accent", args.workflowScriptPath)}${args.async === true ? `${gap}${theme.fg("warning", "[async]")}` : ""}${args.preflight !== undefined ? `${gap}${theme.fg("dim", formatWorkflowPreflightCall(args.preflight))}` : ""}`,
+					`${title}${gap}${theme.fg("accent", args.workflowScriptPath)}${gap}${theme.fg("warning", "[async]")}${args.preflight !== undefined ? `${gap}${theme.fg("dim", formatWorkflowPreflightCall(args.preflight))}` : ""}`,
 					0,
 					0,
 				);
-			const asyncLabel = args.async === true ? `${gap}${theme.fg("warning", "[async]")}` : "";
+			const asyncLabel = `${gap}${theme.fg("warning", "[async]")}`;
 			return new Text(
 				`${title}${gap}${theme.fg("accent", args.agent || "?")}${asyncLabel}`,
 				0,
