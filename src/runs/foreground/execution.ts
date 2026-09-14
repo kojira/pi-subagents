@@ -160,6 +160,8 @@ function persistSingleResultMetadata(input: {
 		processSignal: target.processSignal,
 		usage: target.usage,
 		model: target.model,
+		requestedModel: target.requestedModel,
+		skippedModels: target.skippedModels,
 		attemptedModels: target.attemptedModels,
 		modelAttempts: target.modelAttempts,
 		durationMs: target.progressSummary?.durationMs,
@@ -262,6 +264,7 @@ function snapshotResult(result: SingleResult, progress: AgentProgress): SingleRe
 		usage: { ...result.usage },
 		skills: result.skills ? [...result.skills] : undefined,
 		attemptedModels: result.attemptedModels ? [...result.attemptedModels] : undefined,
+		skippedModels: result.skippedModels ? result.skippedModels.map((skipped) => ({ ...skipped })) : undefined,
 		modelAttempts: result.modelAttempts
 			? result.modelAttempts.map((attempt) => ({
 				...attempt,
@@ -1810,7 +1813,7 @@ async function runSyncCompletionInner(
 	}
 	const systemPrompt = buildEffectiveSystemPrompt({ agent, resolvedSkills, cwd: skillCwd, ...(options.outputPath ? { outputPath: options.outputPath } : {}) });
 
-	const candidates = buildModelCandidates(
+	const { candidates, requestedModel, skippedModels } = buildModelCandidates(
 		options.modelOverride ?? agent.model,
 		agent.fallbackModels,
 		options.availableModels,
@@ -2088,6 +2091,8 @@ async function runSyncCompletionInner(
 
 	result.usage = aggregateUsage;
 	result.attemptedModels = attemptedModels.length > 0 ? attemptedModels : undefined;
+	result.requestedModel = requestedModel;
+	result.skippedModels = skippedModels;
 	result.modelAttempts = modelAttempts.length > 0 ? modelAttempts : undefined;
 	result.progressSummary = {
 		...(childSessionName ? { sessionName: childSessionName } : {}),
