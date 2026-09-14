@@ -16,13 +16,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - name: Install devDependencies
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm run typecheck
       - name: Unit tests
         run: node --experimental-strip-types --import ./test/support/isolated-temp-root.mjs --test ${{ runner.os == 'Windows' && '--test-concurrency=2' || '' }} test/unit/*.test.ts
       - name: Integration tests
@@ -43,6 +46,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -50,7 +56,7 @@ jobs:
         with:
           bun-version: latest
       - name: Install devDependencies
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: WorkflowScript Bun parity tests
         run: >-
           bun test test/unit/scripted-workflow.test.ts
@@ -68,10 +74,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
-      - run: npm ci --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: node test/smoke/runner-loader-capability.mjs ${{ matrix.loader }}
 
   clean-install:
@@ -79,6 +88,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
@@ -91,8 +103,8 @@ jobs:
           path: |
             ${{ runner.temp }}/clean-install-smoke/*.log
             ${{ runner.temp }}/clean-install-smoke/aliases.json
-            ${{ runner.temp }}/clean-install-smoke/host/package-lock.json
-            ${{ runner.temp }}/clean-install-smoke/extension/package-lock.json
+            ${{ runner.temp }}/clean-install-smoke/host/pnpm-lock.yaml
+            ${{ runner.temp }}/clean-install-smoke/extension/pnpm-lock.yaml
 
   official-standalone:
     # The official Linux x64 release only; 22.04 permits bubblewrap namespaces.
@@ -100,13 +112,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - name: Install controller dependencies and isolation tool
         run: |
           node -e 'const a = require("node:assert/strict"); a.equal(process.platform, "linux"); a.equal(process.arch, "x64");'
-          npm ci --ignore-scripts
+          pnpm install --frozen-lockfile --ignore-scripts
           # Bubblewrap needs only Ubuntu indexes, not the runner's third-party repositories.
           printf '%s\n' 'deb http://archive.ubuntu.com/ubuntu jammy main universe' 'deb http://archive.ubuntu.com/ubuntu jammy-updates main universe' 'deb http://security.ubuntu.com/ubuntu jammy-security main universe' > "$RUNNER_TEMP/ubuntu.sources.list"
           sudo apt-get -o Dir::Etc::sourcelist="$RUNNER_TEMP/ubuntu.sources.list" -o Dir::Etc::sourceparts=- update
