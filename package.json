@@ -55,10 +55,10 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit",
+    "test": "pnpm run test:unit",
     "test:unit": "node --experimental-strip-types --import ./test/support/isolated-temp-root.mjs --test test/unit/*.test.ts",
     "test:integration": "node --experimental-strip-types --import ./test/support/register-loader.mjs --test test/integration/*.test.ts",
-    "test:all": "npm run test:unit && npm run test:integration"
+    "test:all": "pnpm run test:unit && pnpm run test:integration"
   },
   "pi": {
     "extensions": [
@@ -99,13 +99,14 @@
     "yaml": "2.8.3"
   },
   "devDependencies": {
+    "@earendil-works/chord": "0.85.1",
     "@earendil-works/pi-agent-core": "0.81.0",
     "@earendil-works/pi-ai": "0.81.0",
+    "@earendil-works/pi-coding-agent": "file:./test/fixtures/pi-coding-agent-shim",
     "@earendil-works/pi-tui": "0.81.0",
     "@oxlint/plugins": "1.80.0",
     "@types/node": "24.13.3",
     "oxlint": "1.80.0",
-    "typescript": "5.9.3",
-    "@earendil-works/pi-coding-agent": "file:./test/fixtures/pi-coding-agent-shim"
+    "typescript": "5.9.3"
   }
 }

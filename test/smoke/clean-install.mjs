@@ -36,12 +36,12 @@ function run(name, command, args, workdir, extra = {}, success = true) {
 	return result;
 }
 fs.writeFileSync(path.join(host, "package.json"), JSON.stringify({ private: true, dependencies: { "@earendil-works/pi-coding-agent": version } }));
-run("host-install", "npm", ["install", "--no-audit", "--no-fund"], host);
-const packed = JSON.parse(run("pack", "npm", ["pack", "--json", "--pack-destination", root], source).stdout)[0];
+run("host-install", "pnpm", ["install", "--ignore-scripts", "--config.node-linker=hoisted", "--config.minimumReleaseAge=10080"], host);
+const packed = JSON.parse(run("pack", "pnpm", ["pack", "--json", "--pack-destination", root], source).stdout);
 assert.ok(packed.files.some(file => file.path === "runner-peer-preload.mjs"), "peer preload must ship");
 assert.ok(packed.files.some(file => file.path === "runner-peer-loader.mjs"), "older-Node peer loader must ship");
-fs.writeFileSync(path.join(extension, "package.json"), JSON.stringify({ private: true, dependencies: { "pi-subagents": `file:${path.join(root, packed.filename)}` } }));
-run("extension-install", "npm", ["install", "--no-audit", "--no-fund"], extension);
+fs.writeFileSync(path.join(extension, "package.json"), JSON.stringify({ private: true, dependencies: { "pi-subagents": `file:${path.resolve(root, packed.filename)}` } }));
+run("extension-install", "pnpm", ["install", "--ignore-scripts", "--config.node-linker=hoisted", "--config.minimumReleaseAge=10080"], extension);
 const installed = path.join(extension, "node_modules/pi-subagents");
 const pi = path.join(host, "node_modules/@earendil-works/pi-coding-agent");
 const { createJiti } = await import(pathToFileURL(path.join(extension, "node_modules/jiti/lib/jiti.mjs")).href);

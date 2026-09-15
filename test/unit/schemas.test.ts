@@ -256,9 +256,9 @@ describe("SubagentParams schema", { skip: !schemasAvailable ? "typebox not avail
 		const chatProgress = SubagentParams?.properties?.chatProgress;
 		assert.equal(chatProgress?.type, "string");
 		assert.deepEqual(chatProgress?.enum, ["auto", "off", "live-card"]);
-		assert.match(String(chatProgress?.description ?? ""), /same Git repository/i);
-		assert.match(String(chatProgress?.description ?? ""), /async:false/);
-		assert.match(String(chatProgress?.description ?? ""), /async: omit or auto\/off/);
+		assert.match(String(chatProgress?.description ?? ""), /always asynchronous/i);
+		assert.match(String(chatProgress?.description ?? ""), /live-card is unavailable/);
+		assert.match(String(chatProgress?.description ?? ""), /Use auto or off/);
 		const worktree = SubagentParams?.properties?.worktree;
 		assert.equal(worktree?.type, "boolean");
 		assert.match(String(worktree?.description ?? ""), /each workflow child/i);
@@ -403,27 +403,12 @@ describe("SubagentParams schema", { skip: !schemasAvailable ? "typebox not avail
 		assert.deepEqual(controlSchema.properties?.notifyChannels?.items?.enum, ["event", "async", "intercom"]);
 	});
 
-	it("exposes tolerant wait mode on bg_wait", () => {
-		const properties = SubagentWaitParams?.properties as Record<string, JsonSchemaNode> | undefined;
-		const id = properties?.id;
-		const nonBlocking = properties?.nonBlocking;
-		const all = properties?.all;
-		const stopOnAttention = properties?.stopOnAttention;
-		const timeoutMs = properties?.timeoutMs;
-		assert.ok(id, "id schema should exist");
-		assert.match(String(id.description ?? ""), /ordinary async subagent runs already notify this session natively/i);
-		assert.match(String(id.description ?? ""), /same-turn blocking results are truly needed/);
-		assert.ok(nonBlocking, "nonBlocking schema should exist");
-		assert.match(String(nonBlocking.description ?? ""), /provider, detached, or other background work without a native completion notification/i);
-		assert.match(String(nonBlocking.description ?? ""), /do not need a subscription/);
-		assert.ok(all, "all schema should exist");
-		assert.match(String(all.description ?? ""), /same-turn result.*truly needed/);
-		assert.doesNotMatch(String(all.description ?? ""), /spawn a replacement/);
-		assert.ok(stopOnAttention, "stopOnAttention schema should exist");
-		assert.equal(stopOnAttention.type, "boolean");
-		assert.match(String(stopOnAttention.description ?? ""), /idle or long-thinking attention/);
-		assert.match(String(timeoutMs?.description ?? ""), /waitTool\.defaultTimeoutMs/);
-		assert.match(String(timeoutMs?.description ?? ""), /non-error active-work result/);
+	it("exposes only immediate wake subscriptions on bg_wait", () => {
+		const properties = SubagentWaitParams?.properties as Record<string, JsonSchemaNode>;
+		assert.deepEqual(Object.keys(properties).sort(), ["id", "timeoutMs"]);
+		assert.match(String(properties.id.description), /returns immediately/);
+		assert.match(String(properties.timeoutMs.description), /never blocks/);
+		assert.equal((SubagentParams.properties as Record<string, unknown>).async, undefined);
 	});
 
 	it("does not emit description-only schema nodes", () => {

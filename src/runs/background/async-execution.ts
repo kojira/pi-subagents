@@ -380,7 +380,7 @@ export function formatAsyncStartedMessage(headline: string, interactive: boolean
 			"The async run is detached and running in the background.",
 			"You are in an interactive session. Return control to the user now; Pi will wake you through the native completion notification when this subagent completes or needs attention. Do not run sleep/polling loops to wait for this async subagent; it does not need a wait call.",
 			"Use bg_wait only for provider, detached, or other background work that lacks a native completion notification.",
-			"If the current turn must receive results from work without a native notification before it ends, call blocking bg_wait(); ordinary async subagent runs do not need a wait call because their completion is delivered natively.",
+			"For work without native completion delivery, register bg_wait({id: ...}) to receive a wake and return immediately. Ordinary async subagents already notify the parent; do not wait or poll for them.",
 			"Otherwise, continue any independent work or return control to the user. Use subagent({ action: \"status\", id: \"...\" }) for a one-shot status/result or to inspect a blocked/stale run, never as a wait loop.",
 		]
 		: [

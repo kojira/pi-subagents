@@ -163,8 +163,8 @@ describe("subagent extension child mode", () => {
 			const dynamicKeyWorkflow = registeredTool.renderCall({ workflowScript: "return runs.all([{key: 'review-' + item, agent: 'reviewer'}]);" }, theme).text;
 			const ordinaryKeyWorkflow = registeredTool.renderCall({ workflowScript: "const config = {key: 'secret'}; return runs.all([{agent: 'reviewer', config: {key: 'nested'}, key: 'review'}]);" }, theme).text;
 			if (!workflow.includes("background · 3 lanes: scan, correctness, tests")) throw new Error("expected workflow manifest, got " + workflow);
-			if (!foregroundWorkflow.includes("foreground · 1 lane: publish")) throw new Error("expected foreground workflow manifest, got " + foregroundWorkflow);
-			if (!templateWorkflow.includes("foreground · 1 lane: template")) throw new Error("expected static template lane, got " + templateWorkflow);
+			if (!foregroundWorkflow.includes("background · 1 lane: publish")) throw new Error("expected foreground workflow manifest, got " + foregroundWorkflow);
+			if (!templateWorkflow.includes("background · 1 lane: template")) throw new Error("expected static template lane, got " + templateWorkflow);
 			if (!commentedWorkflow.includes("background · 1 lane: real")) throw new Error("expected lexical lane filtering, got " + commentedWorkflow);
 			if (!dynamicKeyWorkflow.includes("workflow script · background")) throw new Error("expected dynamic key fallback, got " + dynamicKeyWorkflow);
 			if (!ordinaryKeyWorkflow.includes("background · 1 lane: review") || ordinaryKeyWorkflow.includes("secret") || ordinaryKeyWorkflow.includes("nested")) throw new Error("expected only runs.all child key, got " + ordinaryKeyWorkflow);
@@ -196,7 +196,7 @@ describe("subagent extension child mode", () => {
 					async: false,
 				}, theme).text;
 				if (!result.includes("background · 1 lane: scan")) throw new Error("expected workflow executor background manifest, got " + result);
-				if (!explicitForeground.includes("foreground · 1 lane: publish")) throw new Error("expected workflow executor foreground manifest, got " + explicitForeground);
+				if (!explicitForeground.includes("background · 1 lane: publish")) throw new Error("expected workflow executor foreground manifest, got " + explicitForeground);
 			`;
 			const env = parentToolEnv();
 			env.PI_CODING_AGENT_DIR = agentDir;

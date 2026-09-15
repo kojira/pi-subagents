@@ -348,7 +348,7 @@ const SubagentParamProperties = {
 	globalConcurrencyLimit: Type.Optional(Type.Integer({ minimum: 1 })),
 	maxSubagentSpawnsPerRun: Type.Optional(Type.Integer({ minimum: 1 })),
 	preflight: Type.Optional(WorkflowPreflightOverride),
-	chatProgress: Type.Optional(Type.String({ enum: ["auto", "off", "live-card"], description: "auto: live card only for watched foreground in same Git repository. live-card requires same-repo async:false; async: omit or auto/off." })),
+	chatProgress: Type.Optional(Type.String({ enum: ["auto", "off", "live-card"], description: "Public execution is always asynchronous. Use auto or off; foreground live-card is unavailable." })),
 	isolation: Type.Optional(Type.String({ enum: ["none", "worktree"], description: "Shared cwd or managed git worktrees." })),
 	worktree: Type.Optional(Type.Boolean({ description: "Isolate each workflow child in a managed git worktree; child worktree:false overrides default." })),
 	baseRef: Type.Optional(Type.String()),
@@ -357,7 +357,6 @@ const SubagentParamProperties = {
 		enum: ["fresh", "fork", "profile"],
 		description: "fresh/fork overrides every child; profile requires agent's declared defaultContext, ignoring config. Omitted: defaultSubagentContext wins over each agent defaultContext; implicit fork needs persisted parent + leaf, else fresh. forkContext may prune forks before spawn.",
 	})),
-	async: Type.Optional(Type.Boolean({ description: "Background; default asyncByDefault. false only to block parent." })),
 	timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Timeout. Foreground and single async runs use config timeoutMs, else 30m; async composites have no default parent deadline. Alias maxRuntimeMs." })),
 	maxRuntimeMs: Type.Optional(Type.Integer({ minimum: 1, description: "Alias timeoutMs (same defaults)." })),
 	checkpointBeforeDeadlineMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 2_147_483_647, description: "Async single-agent runs only: the runner requests that the child checkpoint and stop this many ms before the run deadline (best-effort; the deadline kill still applies)." })),
@@ -401,22 +400,8 @@ export function createSubagentParamsSchema(): typeof SubagentParams {
 }
 
 const SubagentWaitParamsSchema = Type.Object({
-	id: Type.Optional(Type.String({
-		description: "Async run or remembered detached foreground run id/prefix to wait for one specific run. Ordinary async subagent runs already notify this session natively; use bg_wait for provider, detached, or other background work without native notification, or when same-turn blocking results are truly needed. Omit to wait across every active async run started in this session only when a same-turn wait is truly needed.",
-	})),
-	nonBlocking: Type.Optional(Type.Boolean({
-		description: "When true, resolve id to one exact run, persist a wake subscription, and return immediately. Use this only for provider, detached, or other background work without a native completion notification; ordinary async subagent runs already notify this session natively and do not need a subscription. The originating session is woken on completion, failure, attention, reconciliation failure, or timeout. Requires id and cannot be combined with all.",
-	})),
-	all: Type.Optional(Type.Boolean({
-		description: "Wait for ALL active runs to finish. Ordinary async subagent runs already notify this session natively; use all only when a same-turn result from tracked background work is truly needed. Default false: return when the first tracked run or provider item finishes or needs attention. Ignored when id targets a single run.",
-	})),
-	timeoutMs: Type.Optional(Type.Integer({
-		minimum: 1,
-		description: "Give up waiting after this many milliseconds (the runs keep going regardless). Ordinary async subagent runs already notify this session natively; use a wait timeout only when same-turn results are truly needed for provider, detached, or other background work without native notification. Defaults to config waitTool.defaultTimeoutMs, then 1800000 (30 minutes). Window expiry is a non-error active-work result.",
-	})),
-	stopOnAttention: Type.Optional(Type.Boolean({
-		description: "For a blocking wait that is truly needed, stop when a run needs attention by default. Set false to keep waiting through idle or long-thinking attention; supervisor/contact requests still stop the wait.",
-	})),
+	id: Type.String({ minLength: 1, description: "Exact run id or prefix for work without native completion notification. Registers a wake subscription and returns immediately." }),
+	timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Wake subscription deadline in milliseconds; never blocks the parent." })),
 });
 
 export const SubagentWaitParams = keepTopLevelParameterDescriptions(SubagentWaitParamsSchema);
