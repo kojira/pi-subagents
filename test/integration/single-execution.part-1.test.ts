@@ -29,6 +29,13 @@ import {
 	events,
 } from "../support/helpers.ts";
 import registerSubagentExtension from "../../src/extension/index.ts";
+import { collectPublicResult } from "../support/collect-public-result.ts";
+
+function makeCollectingExecutor(...args: Parameters<typeof makeExecutor>) {
+ const executor = makeExecutor(...args);
+ return { ...executor, executePublic: (...call: Parameters<typeof executor.executePublic>) => executor.executePublic(...call).then(collectPublicResult), executeScheduled: (...call: Parameters<typeof executor.executeScheduled>) => executor.executeScheduled(...call).then(collectPublicResult) };
+}
+
 import { handleSubagentControlNotice } from "../../src/extension/control-notices.ts";
 import { discoverAgents } from "../../src/agents/agents.ts";
 import { resolveSubagentLaunchContract } from "../../src/api/preflight.ts";
@@ -178,7 +185,7 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 
 	it("runs public structured single-child requests directly", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
 		mockPi.onCall({ output: "Structured child completed" });
-		const executor = makeExecutor([makeAgent("echo")]);
+		const executor = makeCollectingExecutor([makeAgent("echo")]);
 
 		const result = await executor.executePublic(
 			"structured-single",
@@ -205,7 +212,7 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 			],
 			keepAliveAfterFinalMessageMs: 400,
 		});
-		const executor = makeExecutor([makeAgent("bash-worker")]);
+		const executor = makeCollectingExecutor([makeAgent("bash-worker")]);
 
 		const result = await executor.executePublic(
 			"structured-single-tool-backfill",
@@ -220,9 +227,9 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 		assert.equal(result.details.results[0]?.timedOut, undefined);
 	});
 
-	it("keeps public structured single-child calls foreground when async is disabled by default", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
+	it("keeps public structured single-child calls asynchronous regardless of default config", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
 		mockPi.onCall({ output: "Structured child used the foreground default" });
-		const executor = makeExecutor([makeAgent("echo")], {}, false);
+		const executor = makeCollectingExecutor([makeAgent("echo")], {}, false);
 
 		const result = await executor.executePublic(
 			"structured-single-foreground-default",
@@ -234,7 +241,7 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 
 		assert.equal(result.isError, undefined, result.content[0]?.text ?? "");
 		assert.match(result.content[0]?.text ?? "", /Structured child used the foreground default/);
-		assert.equal(result.details.asyncId, undefined);
+		assert.ok(result.details.asyncId);
 	});
 
 	it("does not override structured single output unless configured by the agent", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
@@ -243,7 +250,7 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 			{ agent: "echo", task: "Disable file output", output: false, async: false },
 		] as const) {
 			mockPi.onCall({ output: "Structured child completed" });
-			const result = await makeExecutor([makeAgent("echo")]).executePublic(
+			const result = await makeCollectingExecutor([makeAgent("echo")]).executePublic(
 				"structured-single-output",
 				params,
 				new AbortController().signal,
@@ -257,7 +264,7 @@ describe("single sync execution", { skip: !available ? "pi packages not availabl
 
 		mockPi.onCall({ output: "Agent report" });
 		const configuredPath = path.join(tempDir, "agent-report.md");
-		const configured = await makeExecutor([makeAgent("echo", { output: configuredPath })]).executePublic(
+		const configured = await makeCollectingExecutor([makeAgent("echo", { output: configuredPath })]).executePublic(
 			"structured-single-agent-output",
 			{ agent: "echo", task: "Use agent output", async: false },
 			new AbortController().signal,
@@ -790,7 +797,7 @@ Answer only from the supplied synthetic text.
 	it("runs isolation none outside Git and keeps worktree isolation strict", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
 		assert.equal(fs.existsSync(path.join(tempDir, ".git")), false);
 		mockPi.onCall({ output: "shared cwd" });
-		const executor = makeExecutor([makeAgent("echo")]);
+		const executor = makeCollectingExecutor([makeAgent("echo")]);
 		const script = `return runs.run("main", { agent: "echo", task: "work" })`;
 
 		const shared = await executor.executePublic(
@@ -923,7 +930,7 @@ Answer only from the supplied synthetic text.
 	});
 
 	it("rejects invalid public workflow acceptance defaults before mission or script work", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
-		const executor = makeExecutor([makeAgent("echo")]);
+		const executor = makeCollectingExecutor([makeAgent("echo")]);
 		const ctx = makeMinimalCtx(tempDir);
 		const params = { async: false, workflowScript: `return "workflow-default-ran";` };
 		const projectBefore = fs.readdirSync(tempDir, { recursive: true });
@@ -981,7 +988,7 @@ Answer only from the supplied synthetic text.
 
 	it("resolves a named workflow resource internally and exposes its provenance", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
 		mockPi.onCall({ output: "Named review completed" });
-		const result = await makeExecutor([makeAgent("reviewer")]).executePublic(
+		const result = await makeCollectingExecutor([makeAgent("reviewer")]).executePublic(
 			"named-review-resource",
 			{ workflow: "review", args: { task: "Review the change" }, async: false },
 			new AbortController().signal,
@@ -1009,7 +1016,7 @@ Answer only from the supplied synthetic text.
 		const registration = registerWorkflowResource({ sessionId: ctx.sessionManager.getSessionId(), definition: {
 			name: "test.mixed", version: 1, resolve: () => ({ script, hostCommands: [{ key: "check", command }] }),
 		} });
-		const executor = makeExecutor([makeAgent("reviewer")]);
+		const executor = makeCollectingExecutor([makeAgent("reviewer")]);
 		try {
 			const other = makeMinimalCtx(tempDir);
 			other.sessionManager.getSessionId = () => "other-session";
@@ -1048,7 +1055,7 @@ Answer only from the supplied synthetic text.
 		const command = `${JSON.stringify(process.execPath)} denied-check.cjs`;
 		const script = `return await runs.host("check", ${JSON.stringify({ kind: "command", command, timeoutMs: 5000 })});`;
 		const ctx = makeMinimalCtx(tempDir);
-		const executor = makeExecutor([]);
+		const executor = makeCollectingExecutor([]);
 		const registration = registerWorkflowResource({ sessionId: ctx.sessionManager.getSessionId(), definition: {
 			name: "test.denied", version: 1, resolve: () => ({ script, hostCommands: [{ key: "different-key", command }, { key: "check", command: `${command} unused` }] }),
 		} });
@@ -1073,7 +1080,7 @@ Answer only from the supplied synthetic text.
 		const script = `return await runs.host("ci", { kind: "command", command: "npm test", timeoutMs: 1000 });`;
 		fs.writeFileSync(path.join(tempDir, "raw-host.js"), script);
 		for (const source of [{ workflowScript: script }, { workflowScriptPath: "raw-host.js" }]) {
-			const result = await makeExecutor([makeAgent("echo")]).executePublic(
+			const result = await makeCollectingExecutor([makeAgent("echo")]).executePublic(
 				"raw-host-denied",
 				{ ...source, args: { resource: "trusted", permit: true, hostCommands: ["npm test"] }, async: false },
 				new AbortController().signal,
@@ -1091,7 +1098,7 @@ Answer only from the supplied synthetic text.
 	it("denies host calls when scheduled raw workflows replay", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
 		const markerPath = path.join(tempDir, "scheduled-host-marker.txt");
 		const script = `require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "ran");`;
-		const result = await makeExecutor([makeAgent("echo")]).executeScheduled(
+		const result = await makeCollectingExecutor([makeAgent("echo")]).executeScheduled(
 			"scheduled-raw-host-denied",
 			{
 				workflowScript: `return await runs.host("ci", { kind: "command", command: ${JSON.stringify(`${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`)}, timeoutMs: 1000 });`,
@@ -1109,7 +1116,7 @@ Answer only from the supplied synthetic text.
 	});
 
 	it("admits only the host command granted by a named workflow resource", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
-		const result = await makeExecutor([makeAgent("echo")]).executePublic(
+		const result = await makeCollectingExecutor([makeAgent("echo")]).executePublic(
 			"named-ci-resource",
 			{ workflow: "run-ci", args: { command: "npm run typecheck", timeoutMs: 120_000 }, async: false },
 			new AbortController().signal,
@@ -1124,7 +1131,7 @@ Answer only from the supplied synthetic text.
 	});
 
 	it("explains the cwd workaround instead of launching a host step", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
-		const executor = makeExecutor([makeAgent("echo")]);
+		const executor = makeCollectingExecutor([makeAgent("echo")]);
 		const result = await executor.executePublic(
 			"host-command-cwd",
 			{
@@ -1216,7 +1223,7 @@ Answer only from the supplied synthetic text.
 		const releasePath = path.join(tempDir, "release-child-output");
 		mockPi.onCall({ waitForPath: releasePath, output: "child fallback output" });
 
-		const pending = makeExecutor([makeAgent("echo")]).executePublic(
+		const pending = makeCollectingExecutor([makeAgent("echo")]).executePublic(
 			"child-output-late-alias-collision",
 			{
 				async: false,
@@ -1236,10 +1243,8 @@ Answer only from the supplied synthetic text.
 		fs.writeFileSync(releasePath, "go", "utf-8");
 
 		const result = await pending;
-		const child = (result.details as { results?: Array<{ exitCode?: number; outputSaveError?: string; savedOutputPath?: string }> } | undefined)?.results?.[0];
-		assert.equal(child?.exitCode, 1);
-		assert.match(child?.outputSaveError ?? "", /Output path changed after it was claimed/);
-		assert.equal(child?.savedOutputPath, undefined);
+		assert.equal(result.isError, true);
+		assert.match(result.content[0]?.text ?? "", /Output path changed after it was claimed/);
 		assert.equal(fs.readFileSync(sharedOutput, "utf-8"), "prior output\n");
 	});
 
@@ -1367,7 +1372,7 @@ Answer only from the supplied synthetic text.
 	it("executes a workflow loaded from workflowScriptPath", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
 		fs.writeFileSync(path.join(tempDir, "workflow.js"), `return runs.run("main", { agent: "echo", task: "from file" });`);
 		mockPi.onCall({ output: "loaded workflow" });
-		const executor = makeExecutor([makeAgent("echo")]);
+		const executor = makeCollectingExecutor([makeAgent("echo")]);
 
 		const result = await executor.executePublic(
 			"file-execution",
@@ -1396,7 +1401,7 @@ Answer only from the supplied synthetic text.
 			{ source: { workflowScript: script }, invocationArgs: { task: "from args", options: { labels: ["two"] } } },
 		]) {
 			mockPi.onCall({ output: "parameterized workflow" });
-			const result = await makeExecutor([makeAgent("echo")]).executePublic(
+			const result = await makeCollectingExecutor([makeAgent("echo")]).executePublic(
 				"parameterized-workflow",
 				{ ...source, args: invocationArgs, async: false },
 				new AbortController().signal,
@@ -1413,7 +1418,7 @@ Answer only from the supplied synthetic text.
 		}
 		assert.equal(digests[0], digests[1], "object key order must not affect the canonical digest");
 		assert.notEqual(digests[1], digests[2], "nested argument changes must affect the canonical digest");
-		const failed = await makeExecutor([makeAgent("echo")]).executePublic(
+		const failed = await makeCollectingExecutor([makeAgent("echo")]).executePublic(
 			"parameterized-workflow-failure",
 			{ workflowScript: `throw new Error("expected failure");`, args, async: false },
 			new AbortController().signal,

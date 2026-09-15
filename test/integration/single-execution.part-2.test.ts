@@ -2573,7 +2573,8 @@ if (!fs.existsSync(${JSON.stringify(holdPath)})) { console.log('{}'); } else {
 			model: "mock/primary",
 			fallbackModels: ["ias-claude-opus-5:high"],
 		})], { modelResponseAliases: { "databricks-bedrock/ias-claude-opus-5": ["claude-opus-5"] } });
-		const result = await executor.executePublic(
+		// This assertion covers the internal foreground fallback engine, not public launch mode.
+		const result = await executor.execute(
 			"foreground-response-alias-fallback",
 			{ agent: "echo", task: "Say hello", async: false, context: "fresh", acceptance: false },
 			new AbortController().signal,
