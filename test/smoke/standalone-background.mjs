@@ -32,13 +32,14 @@ function run(name, command, args) {
 	assert.ifError(result.error);
 	return result;
 }
-const packed = run("pack", "npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", root]);
+const packed = run("pack", "pnpm", ["pack", "--json", "--pack-destination", root]);
 assert.equal(packed.status, 0, packed.stderr);
-const tarball = JSON.parse(packed.stdout)[0];
-assert.equal(run("extract", "tar", ["-xf", path.join(root, tarball.filename), "-C", root]).status, 0);
+const tarball = JSON.parse(packed.stdout);
+assert.equal(run("extract", "tar", ["-xf", path.resolve(root, tarball.filename), "-C", root]).status, 0);
 // Copy rather than symlink: ancestor resolution must not escape into the checkout's dev SDK/shim.
 fs.cpSync(path.join(source, "node_modules"), path.join(root, "package/node_modules"), {
 	recursive: true,
+	dereference: true,
 	filter: (entry) => !coreSdk.test(path.relative(source, entry).split(path.sep).join("/")),
 });
 for (const name of ["home", "agent", "work", "tmp", "cache", "bun-cache", "package/test/smoke"]) fs.mkdirSync(path.join(root, name), { recursive: true });
