@@ -4,11 +4,11 @@ import path from 'node:path';
 import { DIRS } from '../../src/shared/types.ts';
 
 /** Test-driver collection only. The public tool itself must return a launch receipt. */
-export async function collectPublicResult(started: any): Promise<any> {
+export async function collectPublicResult(started: any, timeoutMs = 15000): Promise<any> {
   if (!started.details?.asyncId) return started;
   const id = started.details.asyncId;
   const resultPath = path.join(DIRS.results, `${id}.json`);
-  const deadline = Date.now() + 15000;
+  const deadline = Date.now() + timeoutMs;
   while (!fs.existsSync(resultPath)) {
     assert.ok(Date.now() < deadline, `No completion artifact for ${id}`);
     await new Promise(resolve => setTimeout(resolve, 20));

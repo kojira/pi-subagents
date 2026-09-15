@@ -1116,13 +1116,15 @@ Answer only from the supplied synthetic text.
 	});
 
 	it("admits only the host command granted by a named workflow resource", { skip: !createSubagentExecutor ? "executor not importable" : undefined }, async () => {
-		const result = await makeCollectingExecutor([makeAgent("echo")]).executePublic(
+		const started = await makeExecutor([makeAgent("echo")]).executePublic(
 			"named-ci-resource",
 			{ workflow: "run-ci", args: { command: "npm run typecheck", timeoutMs: 120_000 }, async: false },
 			new AbortController().signal,
 			undefined,
 			makeMinimalCtx(path.resolve(".")),
 		);
+		// Match the granted 120s host deadline, plus artifact publication slack.
+		const result = await collectPublicResult(started, 125_000);
 		assert.equal(result.isError, undefined, result.content[0]?.text ?? "named CI workflow failed");
 		assert.equal(result.details.workflow?.resource?.name, "run-ci");
 		assert.equal(result.details.workflow?.receipt?.resource?.name, "run-ci");
