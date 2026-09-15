@@ -35,20 +35,13 @@ describe("public workflow worktree admission", { skip: !available }, () => {
 					const output = path.join(tempDir, "child-output.md");
 					const script = `const results = await runs.all([${JSON.stringify(repo)}, ${JSON.stringify(invalid)}].map((cwd, i) => ({ key: 'child-' + i, agent: 'worker', task: 'Inspect', cwd, output: i === 0 ? ${JSON.stringify(output)} : false }))); if (results.some(r => !r.ok)) throw new Error(results.map(r => r.error).join('; ')); return results;`;
 					const result = await executor.executePublic(`admission-${source}-${async}`, { workflowScript: script, async, ...(source === "nonrepo" ? { isolation: "worktree" } : {}), maxSubagentSpawnsPerRun: 2, output: false }, new AbortController().signal, undefined, makeMinimalCtx(tempDir));
-					let budget: unknown;
-					if (async) {
-						assert.ok(result.details?.asyncId);
-						const payload = await readAsyncPayload(result.details.asyncId);
-						assert.equal(payload.success, false);
-						assert.match(payload.error ?? "", /Worktree admission failed.*child-1/);
-						const status = JSON.parse(fs.readFileSync(path.join(ASYNC_DIR, result.details.asyncId, "status.json"), "utf8"));
-						budget = status.runFanoutBudget;
-						assert.ok(status.steps.every((step: { runId?: string }) => !step.runId));
-					} else {
-						assert.equal(result.isError, true);
-						assert.match(result.content.map((item) => item.text).join("\n"), /Worktree admission failed.*child-1/);
-						budget = (result.details as { runFanoutBudget?: unknown }).runFanoutBudget;
-					}
+					assert.ok(result.details?.asyncId);
+					const payload = await readAsyncPayload(result.details.asyncId);
+					assert.equal(payload.success, false);
+					assert.match(payload.error ?? "", /Worktree admission failed.*child-1/);
+					const status = JSON.parse(fs.readFileSync(path.join(ASYNC_DIR, result.details.asyncId, "status.json"), "utf8"));
+					const budget = status.runFanoutBudget;
+					assert.ok(status.steps.every((step: { runId?: string }) => !step.runId));
 					assert.deepEqual(budget, { used: 0, limit: 2, remaining: 2 });
 					assert.equal(callCount(), 0);
 					assert.equal(fs.existsSync(output), false);
@@ -70,8 +63,12 @@ describe("public workflow worktree admission", { skip: !available }, () => {
 				async: false, worktree: true, output: false,
 			}, new AbortController().signal, undefined, makeMinimalCtx(tempDir));
 			assert.notEqual(result.isError, true, JSON.stringify(result));
+			assert.ok(result.details?.asyncId);
+			const payload = await readAsyncPayload(result.details.asyncId);
+			assert.equal(payload.success, true, payload.error);
 			assert.equal(callCount(), 2);
-			assert.deepEqual((result.details as { workflow?: { value?: unknown } }).workflow?.value, [true, true]);
+			const status = JSON.parse(fs.readFileSync(path.join(ASYNC_DIR, result.details.asyncId, "status.json"), "utf8"));
+			assert.deepEqual(status.workflow?.value, [true, true]);
 		} finally {
 			fs.rmSync(repo, { recursive: true, force: true });
 		}
