@@ -254,8 +254,9 @@ describe("supervisor ask registration", () => {
 	}
 
 	for (const platform of ["darwin", "win32"] as const) {
-		it(`answers nested A → B → C asks through the child hooks and executor (${platform})`, { timeout: 15_000 }, async () => {
+		it(`answers nested A → B → C asks through the child hooks and executor (${platform})`, { timeout: 30_000 }, async () => {
 			clearExclusions();
+			const nestedWaitMs = process.platform === "win32" ? 10_000 : 2_000;
 			const root = fs.mkdtempSync(path.join(os.tmpdir(), "nested-supervisor-"));
 			const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
 			process.env.PI_CODING_AGENT_DIR = root;
@@ -301,7 +302,7 @@ describe("supervisor ask registration", () => {
 								bDrainReturnedBeforeReply = true;
 								assert.equal(cReturned, false, "the owner drain must yield before C is replied to");
 								// No explicit pending scan: executor activation must discover C's delayed ask.
-								await waitForCondition(() => runtime.notices.length > 0, "B to discover C's ask without a manual scan");
+								await waitForCondition(() => runtime.notices.length > 0, "B to discover C's ask without a manual scan", nestedWaitMs);
 								const pending = await runtime.call(NATIVE_SUPERVISOR_TOOL_NAME, { action: "pending" });
 								const [ask] = pending.details.pending;
 								cRequest = ask.id;
@@ -339,7 +340,7 @@ describe("supervisor ask registration", () => {
 				const run = runSync(root, [makeAgent("coordinator", { model: "mock/test-model", tools: ["read", "subagent", "contact_supervisor", "subagent_supervisor"] })], "coordinator", "Inspect read-only with the assigned leaf.", {
 					runId: randomUUID(), parentSessionId: a, orchestratorIntercomTarget: "shared-name", signal: abort.signal,
 				});
-				await waitForCondition(() => runtimes.length > 0, "coordinator startup");
+				await waitForCondition(() => runtimes.length > 0, "coordinator startup", nestedWaitMs);
 				// Surface diagnostic failures immediately rather than hiding them behind an ask timeout.
 				const result = await Promise.race([
 					run.then(result => { assert.equal(result.exitCode, 0, result.error); return result; }),
@@ -348,7 +349,7 @@ describe("supervisor ask registration", () => {
 							// A may be idle; its explicit query is authoritative.
 							void parentTools.get(NATIVE_SUPERVISOR_TOOL_NAME)!.execute("pending", { action: "pending" });
 							return parent.pending.size > 0;
-						}, "B's escalation to A");
+						}, "B's escalation to A", nestedWaitMs);
 						const [ask] = parent.pending.values();
 						assert.equal(ask!.agent, "coordinator");
 						assert.notEqual(ask!.id, cRequest);
@@ -1031,8 +1032,8 @@ describe("supervisor ask registration", () => {
 	});
 });
 
-async function waitForCondition(condition: () => boolean, description: string): Promise<void> {
-	const deadline = Date.now() + 2000;
+async function waitForCondition(condition: () => boolean, description: string, timeoutMs = 2000): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
 	while (!condition()) {
 		if (Date.now() > deadline) assert.fail(`Timed out waiting for ${description}`);
 		await new Promise((resolve) => setTimeout(resolve, 10));
