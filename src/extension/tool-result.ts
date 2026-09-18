@@ -17,3 +17,20 @@ export function finalizeToolResult<T>(result: AgentToolResult<T>): AgentToolResu
 
 	throw new Error(message || "pi-subagents reported a logical tool failure.");
 }
+
+/**
+ * Public async launches are completion-notified. End the parent tool batch so
+ * the host can park until that native notification instead of polling the run.
+ * Management calls remain ordinary tool boundaries even when their details
+ * mention an async run.
+ */
+export function finalizePublicToolResult<T extends { asyncId?: string }>(
+	params: { action?: unknown },
+	result: AgentToolResult<T>,
+): AgentToolResult<T> & { park?: boolean } {
+	const finalized = finalizeToolResult(result);
+	if (params.action === undefined && finalized.details.asyncId) {
+		return { ...finalized, terminate: true, park: true };
+	}
+	return finalized;
+}

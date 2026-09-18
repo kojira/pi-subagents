@@ -74,7 +74,7 @@ import { formatDuration, shortenPath } from "../shared/formatters.ts";
 import { applyModelExclusionsConfig, loadConfig, resolveAsyncByDefault, resolveScheduledStoreRoot } from "./config.ts";
 import { buildSubagentToolDescription, buildSubagentToolPromptMetadata } from "./tool-description.ts";
 import { formatWorkflowPreflightSummary, normalizeWorkflowPreflight } from "../workflows/workflow-preflight.ts";
-import { finalizeToolResult } from "./tool-result.ts";
+import { finalizePublicToolResult } from "./tool-result.ts";
 import { collectGoalContinuationNotices } from "../missions/goal-driver.ts";
 import { restoreForegroundRunHistory } from "../runs/foreground/foreground-history.ts";
 import { resolveMissionStoreLocation } from "../missions/store.ts";
@@ -775,7 +775,10 @@ export default function registerSubagentExtension(pi: ExtensionAPI): void {
 		parameters,
 
 		async execute(id, params, signal, onUpdate, ctx) {
-			return finalizeToolResult(await executeSubagentCollapsed(id, params as SubagentParamsLike, signal ?? new AbortController().signal, onUpdate, ctx));
+			return finalizePublicToolResult(
+				params,
+				await executeSubagentCollapsed(id, params as SubagentParamsLike, signal ?? new AbortController().signal, onUpdate, ctx),
+			);
 		},
 
 		renderCall(args, theme) {
