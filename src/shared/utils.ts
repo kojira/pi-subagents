@@ -246,14 +246,49 @@ function stripPiTurnTimingFooter(text: string): string {
 	return text.replace(PI_TURN_TIMING_FOOTER, "");
 }
 
+function indexSuccessfulFinishWorkResults(messages: Message[]): Map<string, number> {
+	const results = new Map<string, number>();
+	for (let i = 0; i < messages.length; i++) {
+		const message = messages[i];
+		if (message?.role === "toolResult"
+			&& message.toolName === "finish_work"
+			&& message.isError !== true
+			&& typeof message.toolCallId === "string") results.set(message.toolCallId, i);
+	}
+	return results;
+}
+
+function getSuccessfulFinishWorkSummary(
+	messages: Message[],
+	assistantIndex: number,
+	resultIndexes: ReadonlyMap<string, number>,
+): string | undefined {
+	const assistant = messages[assistantIndex];
+	if (!assistant || assistant.role !== "assistant" || !Array.isArray(assistant.content)) return undefined;
+	for (let i = assistant.content.length - 1; i >= 0; i--) {
+		const part = assistant.content[i];
+		if (!part || part.type !== "toolCall" || part.name !== "finish_work" || typeof part.id !== "string") continue;
+		const args = part.arguments;
+		if (!args || typeof args !== "object" || Array.isArray(args)) continue;
+		const summary = (args as Record<string, unknown>).summary;
+		if (typeof summary !== "string" || summary.trim().length === 0) continue;
+		const resultIndex = resultIndexes.get(part.id);
+		if (resultIndex !== undefined && resultIndex > assistantIndex) return summary;
+	}
+	return undefined;
+}
+
 export function getFinalOutput(messages: Message[]): string {
 	const validTextParts: string[] = [];
+	const finishWorkResults = indexSuccessfulFinishWorkResults(messages);
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i];
 		if (!msg || msg.role !== "assistant") continue;
 		const hasAssistantError = ("errorMessage" in msg && typeof msg.errorMessage === "string" && msg.errorMessage.length > 0)
 			|| ("stopReason" in msg && msg.stopReason === "error");
 		if (hasAssistantError) continue;
+		const finishSummary = getSuccessfulFinishWorkSummary(messages, i, finishWorkResults);
+		if (finishSummary) validTextParts.push(finishSummary);
 		const messageText = msg.content
 			.flatMap((part) => {
 				if (part.type !== "text") return [];
@@ -484,21 +519,22 @@ export function formatEmptyTerminalAssistantResponseError(messages: Message[]): 
  * Detect errors in subagent execution from messages (only errors with no subsequent success)
  */
 export function detectSubagentError(messages: Message[]): ErrorInfo {
-	let lastAssistantTextIndex = -1;
+	let lastSuccessfulOutputIndex = -1;
+	const finishWorkResults = indexSuccessfulFinishWorkResults(messages);
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i];
 		if (msg?.role === "assistant") {
 			const hasText = Array.isArray(msg.content) && msg.content.some(
 				(c) => c.type === "text" && "text" in c && typeof c.text === "string" && c.text.trim().length > 0,
 			);
-			if (hasText) {
-				lastAssistantTextIndex = i;
+			if (hasText || getSuccessfulFinishWorkSummary(messages, i, finishWorkResults)) {
+				lastSuccessfulOutputIndex = i;
 				break;
 			}
 		}
 	}
 
-	const scanStart = lastAssistantTextIndex >= 0 ? lastAssistantTextIndex + 1 : 0;
+	const scanStart = lastSuccessfulOutputIndex >= 0 ? lastSuccessfulOutputIndex + 1 : 0;
 
 	for (let i = messages.length - 1; i >= scanStart; i--) {
 		const msg = messages[i];

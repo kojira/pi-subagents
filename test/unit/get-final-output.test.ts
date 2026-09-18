@@ -1,10 +1,31 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Message } from "@earendil-works/pi-ai";
-import { getFinalOutput } from "../../src/shared/utils.ts";
+import { detectSubagentError, getFinalOutput } from "../../src/shared/utils.ts";
 
 function assistantContent(content: unknown[]): Message {
 	return { role: "assistant", content } as unknown as Message;
+}
+
+function finishWorkMessages(summary: string, options: { isError?: boolean; includeResult?: boolean } = {}): Message[] {
+	const id = "finish-1";
+	const messages: Message[] = [assistantContent([{
+		type: "toolCall",
+		id,
+		name: "finish_work",
+		arguments: { checkpointId: "work-1", outcome: "completed", reason: "done", summary },
+	}])];
+	if (options.includeResult !== false) {
+		messages.push({
+			role: "toolResult",
+			toolCallId: id,
+			toolName: "finish_work",
+			content: [{ type: "text", text: options.isError ? "finish failed" : "ok" }],
+			isError: options.isError ?? false,
+			timestamp: 0,
+		} as Message);
+	}
+	return messages;
 }
 
 describe("getFinalOutput", () => {
@@ -69,6 +90,33 @@ describe("getFinalOutput", () => {
 		];
 
 		assert.equal(getFinalOutput(messages), "Earlier");
+	});
+
+	it("uses a successfully completed finish_work summary as final output", () => {
+		assert.equal(getFinalOutput(finishWorkMessages("Completed review.")), "Completed review.");
+	});
+
+	it("does not use finish_work arguments without a successful matching result", () => {
+		assert.equal(getFinalOutput(finishWorkMessages("Uncommitted.", { includeResult: false })), "");
+		assert.equal(getFinalOutput(finishWorkMessages("Rejected.", { isError: true })), "");
+	});
+
+	it("treats a successful finish_work as the boundary for earlier tool errors", () => {
+		const messages = [
+			assistantContent([{ type: "toolCall", id: "read-1", name: "read", arguments: { path: "missing" } }]),
+			{
+				role: "toolResult",
+				toolCallId: "read-1",
+				toolName: "read",
+				content: [{ type: "text", text: "not found" }],
+				isError: true,
+				timestamp: 0,
+			} as Message,
+			...finishWorkMessages("Recovered and completed."),
+		];
+
+		assert.deepEqual(detectSubagentError(messages), { hasError: false });
+		assert.equal(getFinalOutput(messages), "Recovered and completed.");
 	});
 
 	it("prefers an earlier explicit acceptance report over later summary-only text", () => {

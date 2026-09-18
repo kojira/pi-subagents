@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Treat a successfully completed Pi `finish_work` summary as the child's final output, so summary-only work completion is persisted and returned instead of being reported as an empty `toolUse` response.
 - Add the ambient-extension rule to Pi's model-not-found error when a child's model comes from an extension-registered provider that was not loaded for it: a foreground child now reports that agents needing a provider extension's models must run as background children (`async: true`) or load the extension explicitly through `subagentOnlyExtensions`/`extensions`, and a background child launched without the ambient extensions gets the matching remedies. When `capabilityCeiling.denyExtensions` blocks every extension, both hosts report the policy instead of remedies the ceiling discards. The core error, exit code, and failure detection are unchanged. Thanks to [@pwguler](https://github.com/pwguler) for #2240.
 - Remote Herdr bridge discovery no longer blocks the parent session while waiting for the remote Pi to start.
 
