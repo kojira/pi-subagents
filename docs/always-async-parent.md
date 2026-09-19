@@ -6,6 +6,7 @@ Approved requirement: remove the public `async` choice, rather than reject synch
 - Workflow-internal sequencing still awaits child results inside the background coordinator; it does not hold the interactive parent tool call open.
 - The public `bg_wait` tool accepts `id` and an optional subscription deadline. It always arms a nonblocking wake subscription. There is no public blocking mode or fallback.
 - Native subagent completion already wakes the parent; use an explicit subscription only for work without native notifications.
+- On a compatible Pi host, a successful public async launch parks the parent tool batch while leaving its work checkpoint active. Native completion or real parent input resumes it, so the parent does not start a text-only continuation or poll the child.
 - Parent input is not automatically forwarded to a child. The parent keeps run identities and decides whether to steer, stop, or continue.
 - Long-lived RPC is required in a chat host to retain the parent and deliver later completion. This patch does not alter Gateway deployment/configuration.
 
