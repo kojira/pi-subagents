@@ -26,7 +26,8 @@ interface BranchSessionEntry {
 }
 
 interface BranchSessionManager {
-	createBranchedSession(leafId: string): string | undefined;
+	/** Pi builds without `contextOnly` ignore the option and copy the full root-to-leaf path. */
+	createBranchedSession(leafId: string, options?: { contextOnly?: boolean }): string | undefined;
 	getHeader?: () => BranchSessionEntry | null;
 	getEntries?: () => BranchSessionEntry[];
 }
@@ -186,7 +187,8 @@ export function createForkContextResolver(
 				throw new Error(`Parent session file does not exist: ${parentSessionFile}. Pi has not persisted enough history to fork yet.`);
 			}
 			const sourceManager = openSession(parentSessionFile, sessionDir);
-			const sessionFile = sourceManager.createBranchedSession(leafId);
+			// A child needs only what the parent model currently sees, not the summarized history.
+			const sessionFile = sourceManager.createBranchedSession(leafId, { contextOnly: true });
 			if (!sessionFile) {
 				throw new Error("Session manager did not return a forked session file.");
 			}

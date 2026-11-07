@@ -136,6 +136,66 @@ describe("createForkContextResolver", () => {
 		}
 	});
 
+	it("requests a context-only fork and sanitizes the file Pi returned", () => {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-subagents-fork-context-only-"));
+		try {
+			const parentSessionFile = path.join(tempDir, "parent.jsonl");
+			const childSessionFile = path.join(tempDir, "child.jsonl");
+			writeMinimalSessionFile(parentSessionFile, "parent");
+			const seenOptions: unknown[] = [];
+			const resolver = createForkContextResolver({
+				getSessionFile: () => parentSessionFile,
+				getLeafId: () => "assistant-1",
+			}, "fork", {
+				openSession: () => ({
+					createBranchedSession: (_leafId: string, options?: { contextOnly?: boolean }) => {
+						seenOptions.push(options);
+						writeSessionJsonl(childSessionFile, [
+							{ type: "session", version: 3, id: "child", timestamp: "2026-04-16T00:00:00.000Z", cwd: "/tmp", parentSession: parentSessionFile },
+							{ type: "compaction", id: "compaction-1", parentId: null, timestamp: "2026-04-16T00:00:01.000Z", summary: "summary", firstKeptEntryId: "compaction-1", tokensBefore: 1 },
+							{ type: "message", id: "assistant-1", parentId: "compaction-1", timestamp: "2026-04-16T00:00:02.000Z", message: { role: "assistant", provider: "anthropic", api: "anthropic-messages", model: "anthropic/claude-sonnet-4", content: [{ type: "thinking", thinking: "private", thinkingSignature: "signed" }, { type: "text", text: "answer" }] } },
+						]);
+						return childSessionFile;
+					},
+				}),
+			});
+
+			assert.equal(resolver.sessionFileForIndex(0), childSessionFile);
+			assert.deepEqual(seenOptions, [{ contextOnly: true }]);
+			const entries = fs.readFileSync(childSessionFile, "utf-8").trim().split("\n").map((line) => JSON.parse(line));
+			assert.deepEqual(entries.map((entry) => entry.id), ["child", "compaction-1", "assistant-1"]);
+			assert.deepEqual(entries[2].message.content, [{ type: "text", text: "answer" }]);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it("still forks through a Pi session manager that ignores the context-only option", () => {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-subagents-fork-legacy-branch-"));
+		try {
+			const parentSessionFile = path.join(tempDir, "parent.jsonl");
+			const childSessionFile = path.join(tempDir, "child.jsonl");
+			writeMinimalSessionFile(parentSessionFile, "parent");
+			const resolver = createForkContextResolver({
+				getSessionFile: () => parentSessionFile,
+				getLeafId: () => "leaf-abc",
+			}, "fork", {
+				openSession: () => ({
+					createBranchedSession(leafId: string) {
+						assert.equal(arguments.length, 2);
+						writeMinimalSessionFile(childSessionFile, `child-of-${leafId}`);
+						return childSessionFile;
+					},
+				}),
+			});
+
+			assert.equal(resolver.sessionFileForIndex(0), childSessionFile);
+			assert.equal(JSON.parse(fs.readFileSync(childSessionFile, "utf-8")).id, "child-of-leaf-abc");
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it("creates forked sessions through the default package opener", () => {
 		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-subagents-fork-default-"));
 		try {
